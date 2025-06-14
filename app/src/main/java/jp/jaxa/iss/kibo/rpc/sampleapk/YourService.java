@@ -6,6 +6,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.RectF;
 import android.os.SystemClock;
+import android.renderscript.Element;
 import android.util.Log;
 
 import jp.jaxa.iss.kibo.rpc.api.KiboRpcService;
@@ -22,9 +23,13 @@ import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Rect;
 import org.opencv.imgproc.Imgproc;
-import org.tensorflow.lite.Interpreter;
+import org.tensorflow.lite.DataType;
+import org.tensorflow.lite.support.common.ops.NormalizeOp;
+import org.tensorflow.lite.support.image.ImageProcessor;
 import org.tensorflow.lite.support.image.TensorImage;
+import org.tensorflow.lite.support.image.ops.ResizeOp;
 import org.tensorflow.lite.support.label.Category;
+import org.tensorflow.lite.task.core.vision.ImageProcessingOptions;
 import org.tensorflow.lite.task.vision.detector.Detection;
 import org.tensorflow.lite.task.vision.detector.ObjectDetector;
 
@@ -74,11 +79,18 @@ public class YourService extends KiboRpcService {
                         .setScoreThreshold(0.5f)
                         .build();
         try {
+            ImageProcessor imageProcessor = new ImageProcessor.Builder()
+                    .add(new ResizeOp(640, 640, ResizeOp.ResizeMethod.BILINEAR))
+                    .add(new NormalizeOp(127.5f, 127.5f)) // mean dan std dev
+                    .build();
+
             ObjectDetector objectDetector = ObjectDetector.createFromFileAndOptions(
                     this,
-                    "model2.tflite",options);
+                    "modelnms2_with_metadata.tflite",options);
             Bitmap bitmap = BitmapFactory.decodeFile("/storage/emulated/0/data/jp.jaxa.iss.kibo.rpc.sampleapk/immediate/DebugImages/post_1.png");
-            TensorImage tensorImage = TensorImage.fromBitmap(bitmap);
+            TensorImage tensorImage = new TensorImage(DataType.FLOAT32);
+            tensorImage.load(bitmap);
+            tensorImage = imageProcessor.process(tensorImage);
             List<Detection> results = objectDetector.detect(tensorImage);
             for (Detection detection : results) {
                 RectF box = detection.getBoundingBox();
